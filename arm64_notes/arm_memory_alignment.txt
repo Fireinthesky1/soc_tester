@@ -1,0 +1,11 @@
+ARM64=armv8-A
+
+- an access is aligned if the address is a multiple of the element size
+- for LDR and STR instructions, the element size is the size of the access.
+- when an address is not a mutliple of the element size, the access is unaligned,
+- unaligned accesses are allowed to addresses marked as normal, but not to Device regions.
+- an unaligned access toa  Device region will trigger an exception (alignment fault)
+
+- Armv8-A instruction fetches are always treated as little endian.
+
+- for data accesses is it implementation defined whether both little endian and big endian are supported and if only one is supported is it implementation defined which one is supported

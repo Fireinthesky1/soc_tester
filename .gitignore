@@ -1,0 +1,10 @@
+# Emacs auto-generated files
+*~
+\#*\#
+.\#*
+*.elc
+auto-save-list
+
+# Compiled files
+*.o
+*.out

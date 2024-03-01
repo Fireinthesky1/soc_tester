@@ -1,0 +1,17 @@
+- armv8 cores are a 86 bit architecture and use 64 bit registers
+- the NEON unit uses 128 bit registers for simd processing
+
+- the NEON register file is a collection of registers which can be accessed as 8-bit, 16, 32, 64, 128 bit registers
+
+- the neon registers contain vectors of elements of the same data type.
+  - the same element position in the input and output registers are
+    referred to as a lane
+
+- usually each neon instruction resuts in n operations occuring in parallel
+  where n is the number of lanes that the input vectors are divided into
+
+- each operation is contained within the lane. There cannot be a carry
+  or overflow from one lane to another
+
+- the number of lanes in a neon vector depends on the size of the vector
+  and thed at

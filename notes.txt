@@ -1,0 +1,51 @@
+##################################################
+architectures
+- arm64, riscv64, powerpc64, powerpc64ie
+
+<FUZxxl> there's basically two ways you can tackle the project:
+<FUZxxl> (a) you can start with the x86 code and try to port it to ARM
+<FUZxxl> or (b) you can start fresh and try to figure out things on your own
+<FUZxxl> I recommend (a) as it's a whole lot less work
+<FUZxxl> There are existing unit tests as well as a benchmark framework you can use and expand
+
+https://github.com/freebsd/freebsd-src/blob/main/lib/libc/amd64/string/strlen.S
+
+
+ yes it is me
+<FUZxxl> sounds like a good starting point
+<FUZxxl> how much experience do you have with SIMD programming?
+<FUZxxl> for ARM, that specifically means "how much experience do you have with NEON/ASIMD?"
+<james> I have no experience with NEON or ASIMD, but if SIMD is similar to parallel programming on the GPU I've done quite a few projects doing parallel programming on the GPU with CUDA C.
+<FUZxxl> it's quite similar, though the string stuff is a very atypical use of SIMD instruction set extensions
+<FUZxxl> I think you'll be fine doing the project.
+<FUZxxl> How much x86 asm do you know?
+<james> I know a little bit of it but haven't had much excuse to get familiar with it. Most assembly I've done is in ARM. But I would love to learn and get immersed.
+<FUZxxl> there's basically two ways you can tackle the project:
+<FUZxxl> (a) you can start with the x86 code and try to port it to ARM
+<FUZxxl> or (b) you can start fresh and try to figure out things on your own
+<FUZxxl> I recommend (a) as it's a whole lot less work
+<FUZxxl> There are existing unit tests as well as a benchmark framework you can use and expand
+<FUZxxl> This is an example for the x86 code:
+<FUZxxl> https://github.com/freebsd/freebsd-src/blob/main/lib/libc/amd64/string/strlen.S
+<FUZxxl> there are two implementations of strlen.  One without SIMD (scalar) and one using SSE (baseline)
+<FUZxxl> for the ARM port, I believe we can get away with just providing SIMD implementations, so you don't have to port the dispatch framework that selects the appropriate implementation at runtime
+<FUZxxl> though this may need to be discussed
+<FUZxxl> you could try to port the "baseline" implementation to ARM to find out if this is something you see yourself doing.
+<FUZxxl> the way this code works is:
+<FUZxxl> the idea is in each iteration (lines 105--109) to read one vector worth of bytes from the string
+<FUZxxl> then we check in parallel if any of the bytes are zero (this is what pcmpeqb does)
+<FUZxxl> the result is turned into a mask and moved into a scalar register using pmovmskb (ASIMD can't do this, but there are workarounds)
+<FUZxxl> if we find any zero byte, we break out of the loop, find the first zero byte with lzcnt and then compute the string length from that.
+<FUZxxl> there's a slight complication in that the string may be (and almost always is) misaligned.
+<FUZxxl> to avoid crossing into unmapped pages, we can only do loads that are known not to do that
+<FUZxxl> aligned loads that intersect the string in at least one byte are always good
+<FUZxxl> so we start by rounding the pointer down to the previous alignment boundary
+<FUZxxl> and do an initial iteration where we ignore null bytes before the beginning of the string
+<FUZxxl> (lines 92--102)
+<FUZxxl> try to port this to ARM; this is the simplest string function and if you manage to make it work, I'm sure the rest is a cakewalk.
+<FUZxxl> or at least, I'm confident you'll be able to do the rest.
+
+<FUZxxl> though please notice that I'm in GMT+1 (CET) time zone
+<FUZxxl> right now it's 2:30 AM here
+
+https://community.arm.com/arm-community-blogs/b/infrastructure-solutions-blog/posts/porting-x86-vector-bitmask-optimizations-to-arm-neon
