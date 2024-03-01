@@ -6,7 +6,6 @@
 #define ref_ptr			x14
 #define shift			x12
 #define mask_reg		x13
-#define partial_len_reg		x14
 #define lead_zero_reg		x15
 #define data_vec		v0
 #define comp_vec		v1
@@ -19,63 +18,37 @@
 strlen:
 	// program starts here
 	// initial scrub
-	mov 	new_ptr, 	original_ptr		// move string pointer
-	and 	original_ptr, 	original_ptr, #~0xF 	// align to 16B boundary
-	ld1 	{data_vec.16b}, [original_ptr]  	// load 16 bytes into v0
+	bic 	new_ptr, 	original_ptr, #0xF 	// align to 16B boundary
+	ld1 	{data_vec.16b}, [new_ptr]  		// load 16 bytes into v0
 	cmeq	comp_vec.16b, 	data_vec.16b, #0 	// equivalent to pcmpeqb
-	mov	new_ptr,	ref_ptr			// ref ptr for later
-	and 	shift,		new_ptr, #0xF		// num bytes past align
-	shrn	mask_vec.8b, 	comp_vec.8h, 4 		// get then nibble mask
-	add	original_ptr,	original_ptr, #32	// move up 32 bytes
+	lsl	shift, 		original_ptr, #2
+	shrn	mask_vec.8b, 	comp_vec.8h, #4		// get then nibble mask
 	fmov	mask_reg,	low_64_of_mask_vec	// move mask vec to reg
 	lsr	mask_reg, 	mask_reg, shift
-
-	/*
-	 * there may be junk bytes before the start of the string
-	 * that are 0. So we shift the mask right by the number of
-	 * bytes we were past alignment to get erroneous matches
-	 * out of the mask
-	 */
-
-	/*
-	 * the mask will be zero if there are no null bytes
-	 * if the mask IS NOT zero we should get the string length
-	 * and return. Otherwise keep tying
-	 */
 	cbnz	mask_reg,	exit
 
 	ALIGN_TEXT
-loop:
-	eor	data_vec.16b,	data_vec.16b, data_vec.16b
-	sub	x7,		original_ptr, #16	// go back 16
-	ld1 	{data_vec.16b}, [x7] 		 	// load 16 more bytes
-	cmeq	comp_vec.16b, 	data_vec.16b, #0 	// equivalent to pcmpeqb
+body_loop:
+	add	new_ptr,	new_ptr, #16		// move new_ptr up 16 bytes
+	ld1 	{data_vec.16b}, [new_ptr]		// load the vector up at this new address
+	cmeq	comp_vec.16b, 	data_vec.16b, #0 	// find any null bytes
 	shrn	mask_vec.8b, 	comp_vec.8h, 4 		// get then nibble mask
 	fmov	mask_reg,	low_64_of_mask_vec	// move mask vec to reg
-	cbnz	mask_reg,	.body_exit
+	cbz	mask_reg,	body_loop		// if all zeros then no null terminator
 
-	// the same unrolled once more
-	eor	data_vec.16b,	data_vec.16b, data_vec.16b
-	ld1 	{data_vec.16b}, [original_ptr]  	// load 16 more bytes
-	cmeq	comp_vec.16b, 	data_vec.16b, #0 	// equivalent to pcmpeqb
-	shrn	mask_vec.8b, 	comp_vec.8h, 4 		// get then nibble mask
-	fmov	mask_reg,	low_64_of_mask_vec	// move mask vec to reg
-	add	original_ptr,	original_ptr, #32	// move up 32 bytes
-	cbz	mask_reg,	loop
-
-	//match found in loop body
-	sub	original_ptr,	original_ptr, #16	// move pointer back
-body_exit:
+	//null terminator found in body
+	sub	result_reg,	new_ptr, original_ptr	// subtract the new_ptr from original
 	rbit	mask_reg,	mask_reg		// reverse for counting
-	clz	lead_zero_reg,	mask_reg		// cnt leading 0's
-	sub	partial_len_reg,ref_ptr, original_ptr	// length w/o lead zeros
-	add	result_reg,	partial_len_reg, lead_zero_reg
+	clz	lead_zero_reg,	mask_reg		// result should be result_reg plus the leading zeros from this
+	lsr 	lead_zero_reg, 	lead_zero_reg, #2
+	add	result_reg,	result_reg, lead_zero_reg
 	ret
 
 exit:
 	/* need to think how this part will be affected by leading junk */
 	rbit	mask_reg,	mask_reg		// reverse the bits
 	clz	result_reg,	mask_reg		// cnt leading zeros
+	lsr 	result_reg, 	result_reg, #2
 	ret
 
 .section .text.end
